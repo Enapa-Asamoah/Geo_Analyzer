@@ -14,8 +14,8 @@ services:
     healthCheckPath: /health
     healthCheckStartupFailureThreshold: 10
 
-  - type: static_site
-    name: geoai-frontend
+staticSites:
+  - name: geoai-frontend
     buildCommand: cd frontend && npm install && npm run build
     publishDirectory: frontend/dist
     envVars:

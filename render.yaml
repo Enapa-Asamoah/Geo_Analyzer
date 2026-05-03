@@ -1,8 +1,8 @@
 services:
   - type: web
     name: geoai-backend
-    runtime: python
-    runtimeVersion: "3.11"
+    env: python
+    envVersion: "3.11"
     buildCommand: pip install -r requirements.txt
     startCommand: gunicorn main:app --workers 2 --worker-class uvicorn.workers.UvicornWorker --timeout 120 --bind 0.0.0.0:8000
     envVars:
@@ -12,10 +12,11 @@ services:
         value: "true"
     rootDir: backend
     healthCheckPath: /health
-    healthCheckStartupFailureThreshold: 10
 
-staticSites:
-  - name: geoai-frontend
+  - type: static-site
+    name: geoai-frontend
+    env: node
+    envVersion: "20"
     buildCommand: cd frontend && npm install && npm run build
     publishDirectory: frontend/dist
     envVars:

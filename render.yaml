@@ -13,12 +13,11 @@ services:
     rootDir: backend
     healthCheckPath: /health
 
-  - type: static-site
-    name: geoai-frontend
-    env: node
-    envVersion: "20"
-    buildCommand: cd frontend && npm install && npm run build
-    publishDirectory: frontend/dist
+staticSites:
+  - name: geoai-frontend
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    publishDirectory: dist
     envVars:
       - key: NODE_ENV
         value: production

@@ -14,18 +14,12 @@ services:
     healthCheckPath: /health
     healthCheckStartupFailureThreshold: 10
 
-  - type: web
+  - type: static_site
     name: geoai-frontend
-    runtime: node
-    runtimeVersion: "20"
-    buildCommand: npm install && npm run build
-    startCommand: npm run preview
+    buildCommand: cd frontend && npm install && npm run build
+    publishDirectory: frontend/dist
     envVars:
       - key: NODE_ENV
         value: production
       - key: VITE_API_URL
-        fromService:
-          name: geoai-backend
-          property: url
-    rootDir: frontend
-    publicPath: dist
+        value: https://geoai-backend.onrender.com

@@ -1,0 +1,31 @@
+services:
+  - type: web
+    name: geoai-backend
+    runtime: python
+    runtimeVersion: "3.11"
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn main:app --workers 2 --worker-class uvicorn.workers.UvicornWorker --timeout 120 --bind 0.0.0.0:8000
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.9"
+      - key: PYTHONUNBUFFERED
+        value: "true"
+    rootDir: backend
+    healthCheckPath: /health
+    healthCheckStartupFailureThreshold: 10
+
+  - type: web
+    name: geoai-frontend
+    runtime: node
+    runtimeVersion: "20"
+    buildCommand: npm install && npm run build
+    startCommand: npm run preview
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: VITE_API_URL
+        fromService:
+          name: geoai-backend
+          property: url
+    rootDir: frontend
+    publicPath: dist

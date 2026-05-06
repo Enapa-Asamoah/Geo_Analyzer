@@ -52,6 +52,8 @@ app.add_middleware(
 )
 
 DATA_ROOT = os.environ.get("DATA_ROOT", "./data")
+if not os.path.isabs(DATA_ROOT):
+    DATA_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), DATA_ROOT))
 DISTRICT_TIFF_DIR = os.path.join(DATA_ROOT, "districts", "tiffs")
 
 # Map hotspot folders to one or more district labels in the shapefile.

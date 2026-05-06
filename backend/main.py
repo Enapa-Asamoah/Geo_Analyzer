@@ -22,6 +22,7 @@ from typing import Any, Optional
 import numpy as np
 import shapefile
 from fastapi import FastAPI, HTTPException, Query
+from fastapi.responses import RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 from PIL import Image
 
@@ -285,12 +286,8 @@ def _district_feature_collection(year_a: Optional[int] = None, year_b: Optional[
 
 @app.get("/")
 def root():
-    return {
-        "service": "Ghana Environmental Change API",
-        "status": "ok",
-        "health": "/health",
-        "docs": "/docs",
-    }
+    # Redirect browser requests to the interactive API docs for convenience
+    return RedirectResponse(url="/docs")
 
 @app.get("/health")
 def health():

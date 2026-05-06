@@ -235,6 +235,15 @@ def _district_feature_collection_base() -> dict[str, Any]:
         })
 
     return {
+
+            @app.get("/")
+            def root():
+                return {
+                    "service": "Ghana Environmental Change API",
+                    "status": "ok",
+                    "health": "/health",
+                    "docs": "/docs",
+                }
         "type": "FeatureCollection",
         "features": features,
         "meta": {

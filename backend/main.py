@@ -26,6 +26,12 @@ from fastapi.responses import RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 from PIL import Image
 
+from storage import (
+    ensure_local_file,
+    list_s3_common_prefixes,
+    local_path_from_s3_key,
+)
+
 from utils import (
     load_rgb,
     load_ndvi,
@@ -55,6 +61,7 @@ DATA_ROOT = os.environ.get("DATA_ROOT", "./data")
 if not os.path.isabs(DATA_ROOT):
     DATA_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), DATA_ROOT))
 DISTRICT_TIFF_DIR = os.path.join(DATA_ROOT, "districts", "tiffs")
+S3_DATA_PREFIX = os.environ.get("S3_DATA_PREFIX", "data")
 
 # Map hotspot folders to one or more district labels in the shapefile.
 # This mapping can be expanded as more district-level data becomes available.
@@ -117,7 +124,12 @@ def _paths(hotspot: str, year: int):
 
 
 def _check_files(*paths):
-    missing = [p for p in paths if not os.path.exists(p)]
+    missing = []
+    for path in paths:
+        if not os.path.exists(path):
+            ensure_local_file(path, DATA_ROOT)
+        if not os.path.exists(path):
+            missing.append(path)
     if missing:
         raise HTTPException(
             status_code=404,
@@ -133,20 +145,38 @@ def _district_tiff_index() -> dict[str, dict[int, str]]:
     Supports both .tif and .tiff extensions.
     """
     if not os.path.isdir(DISTRICT_TIFF_DIR):
-        return {}
+        index: dict[str, dict[int, str]] = {}
+    else:
+        index = {}
 
     pattern = re.compile(r"^(?P<district>.+)_RGB_(?P<year>\d{4})\.(?P<ext>tif|tiff)$", re.IGNORECASE)
-    index: dict[str, dict[int, str]] = {}
+    if os.path.isdir(DISTRICT_TIFF_DIR):
+        for name in os.listdir(DISTRICT_TIFF_DIR):
+            matched = pattern.match(name)
+            if not matched:
+                continue
 
-    for name in os.listdir(DISTRICT_TIFF_DIR):
-        matched = pattern.match(name)
-        if not matched:
-            continue
+            district_raw = matched.group("district").replace("_", " ").strip()
+            year = int(matched.group("year"))
+            norm = _norm_name(district_raw)
+            index.setdefault(norm, {})[year] = os.path.join(DISTRICT_TIFF_DIR, name)
 
-        district_raw = matched.group("district").replace("_", " ").strip()
-        year = int(matched.group("year"))
-        norm = _norm_name(district_raw)
-        index.setdefault(norm, {})[year] = os.path.join(DISTRICT_TIFF_DIR, name)
+    if os.environ.get("S3_BUCKET"):
+        # Merge in any TIFFs that only exist in S3 so availability checks still work.
+        from storage import list_s3_keys
+
+        s3_prefix = f"{S3_DATA_PREFIX.rstrip('/')}/districts/tiffs/"
+        for key in list_s3_keys(s3_prefix):
+            filename = os.path.basename(key)
+            matched = pattern.match(filename)
+            if not matched:
+                continue
+
+            district_raw = matched.group("district").replace("_", " ").strip()
+            year = int(matched.group("year"))
+            norm = _norm_name(district_raw)
+            local_path = local_path_from_s3_key(DATA_ROOT, key, S3_DATA_PREFIX)
+            index.setdefault(norm, {})[year] = local_path
 
     return index
 
@@ -201,11 +231,19 @@ def _district_feature_collection_base() -> dict[str, Any]:
         records = [dict(zip(field_names, record)) for record in reader.records()]
         shapes = reader.shapes()
 
+    sentinel_root = os.path.join(DATA_ROOT, "sentinel")
     available_hotspots = {
         folder
-        for folder in os.listdir(os.path.join(DATA_ROOT, "sentinel"))
-        if os.path.isdir(os.path.join(DATA_ROOT, "sentinel", folder))
-    } if os.path.isdir(os.path.join(DATA_ROOT, "sentinel")) else set()
+        for folder in os.listdir(sentinel_root)
+        if os.path.isdir(os.path.join(sentinel_root, folder))
+    } if os.path.isdir(sentinel_root) else set()
+
+    if not available_hotspots and os.environ.get("S3_BUCKET"):
+        s3_prefix = f"{S3_DATA_PREFIX.rstrip('/')}/sentinel/"
+        for prefix in list_s3_common_prefixes(s3_prefix):
+            hotspot = prefix[len(s3_prefix):].strip("/")
+            if hotspot:
+                available_hotspots.add(hotspot)
 
     district_to_hotspot: dict[str, str] = {}
     for hotspot, districts in HOTSPOT_TO_DISTRICTS.items():
@@ -300,13 +338,29 @@ def health():
 def list_locations():
     """Return available hotspot names from disk."""
     sentinel_dir = os.path.join(DATA_ROOT, "sentinel")
-    if not os.path.isdir(sentinel_dir):
+    if not os.path.isdir(sentinel_dir) and not os.environ.get("S3_BUCKET"):
         return {"locations": [
             "Obuasi", "Tarkwa", "Prestea", "Bibiani", "Dunkwa",
             "Konongo", "Goaso", "Kibi", "Winneba", "Bekwai",
             "Sefwi-Bekwai", "Bui", "Bole", "Nangodi", "Wa", "Lawra"
         ]}
-    return {"locations": sorted(os.listdir(sentinel_dir))}
+
+    locations = set()
+    if os.path.isdir(sentinel_dir):
+        locations.update(sorted(os.listdir(sentinel_dir)))
+
+    if os.environ.get("S3_BUCKET"):
+        s3_prefix = f"{S3_DATA_PREFIX.rstrip('/')}/sentinel/"
+        for prefix in list_s3_common_prefixes(s3_prefix):
+            hotspot = prefix[len(s3_prefix):].strip("/")
+            if hotspot:
+                locations.add(hotspot)
+
+    return {"locations": sorted(locations) if locations else [
+        "Obuasi", "Tarkwa", "Prestea", "Bibiani", "Dunkwa",
+        "Konongo", "Goaso", "Kibi", "Winneba", "Bekwai",
+        "Sefwi-Bekwai", "Bui", "Bole", "Nangodi", "Wa", "Lawra"
+    ]}
 
 
 @app.get("/years")

@@ -101,7 +101,8 @@ interface DistrictInsight {
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const API = import.meta.env.VITE_API_URL || "http://localhost:8000";
+// `import.meta.env` may not have proper typings in some CI environments; cast to `any` to avoid build-time TS errors.
+const API = ((import.meta as any).env?.VITE_API_URL as string) || "http://localhost:8000";
 
 const HOTSPOTS = [
   "Obuasi","Tarkwa","Prestea","Bibiani","Dunkwa",

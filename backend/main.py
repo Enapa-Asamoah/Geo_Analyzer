@@ -235,15 +235,6 @@ def _district_feature_collection_base() -> dict[str, Any]:
         })
 
     return {
-
-            @app.get("/")
-            def root():
-                return {
-                    "service": "Ghana Environmental Change API",
-                    "status": "ok",
-                    "health": "/health",
-                    "docs": "/docs",
-                }
         "type": "FeatureCollection",
         "features": features,
         "meta": {
@@ -291,6 +282,15 @@ def _district_feature_collection(year_a: Optional[int] = None, year_b: Optional[
 
 
 # ── routes ───────────────────────────────────────────────────────────────────
+
+@app.get("/")
+def root():
+    return {
+        "service": "Ghana Environmental Change API",
+        "status": "ok",
+        "health": "/health",
+        "docs": "/docs",
+    }
 
 @app.get("/health")
 def health():
